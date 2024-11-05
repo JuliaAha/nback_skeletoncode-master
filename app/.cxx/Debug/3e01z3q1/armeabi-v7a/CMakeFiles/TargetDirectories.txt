@@ -1,0 +1,4 @@
+/Users/julialoflandgustafsson/Downloads/nback_skeletoncode-master/app/.cxx/Debug/3e01z3q1/armeabi-v7a/CMakeFiles/nback_cimpl.dir
+/Users/julialoflandgustafsson/Downloads/nback_skeletoncode-master/app/.cxx/Debug/3e01z3q1/armeabi-v7a/CMakeFiles/JniBridge.dir
+/Users/julialoflandgustafsson/Downloads/nback_skeletoncode-master/app/.cxx/Debug/3e01z3q1/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/julialoflandgustafsson/Downloads/nback_skeletoncode-master/app/.cxx/Debug/3e01z3q1/armeabi-v7a/CMakeFiles/rebuild_cache.dir
