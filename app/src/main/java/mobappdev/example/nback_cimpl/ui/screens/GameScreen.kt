@@ -34,7 +34,7 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import mobappdev.example.nback_cimpl.R
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameViewModel
-import mobappdev.example.nback_cimpl.ui.viewmodels.FakeVM
+
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameType
 
 @Composable
@@ -114,6 +114,7 @@ fun GameScreen(
                     onClick = {
                         vm.setGameType(GameType.Audio)
                         vm.checkMatch()
+                        vm.playSound() // Trigger sound playback
                         scope.launch {
                             snackBarHostState.showSnackbar("Audio match attempted")
                         }
@@ -161,8 +162,8 @@ fun GameScreen(
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun GameScreenPreview() {
-    GameScreen(vm = FakeVM())
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun GameScreenPreview() {
+//    GameScreen(vm = FakeVM())
+//}

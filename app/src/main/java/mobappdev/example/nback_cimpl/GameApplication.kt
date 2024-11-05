@@ -31,10 +31,12 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
 * Custom app entry point for manual dependency injection
  */
 class GameApplication: Application() {
-    lateinit var userPreferencesRespository: UserPreferencesRepository
+    // Initialize userPreferencesRepository lazily with a lambda
+    val userPreferencesRepository: UserPreferencesRepository by lazy {
+        UserPreferencesRepository(dataStore)
+    }
 
     override fun onCreate() {
         super.onCreate()
-        userPreferencesRespository = UserPreferencesRepository(dataStore)
     }
 }

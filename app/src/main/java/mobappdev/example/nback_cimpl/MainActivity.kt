@@ -37,9 +37,9 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Instantiate the viewmodel
+                    // Instantiate the viewmodel with the custom factory
                     val gameViewModel: GameVM = viewModel(
-                        factory = GameVM.Factory
+                        factory = GameVM.provideFactory(application as GameApplication)
                     )
 
                     // Call NavigationGraph to handle navigation

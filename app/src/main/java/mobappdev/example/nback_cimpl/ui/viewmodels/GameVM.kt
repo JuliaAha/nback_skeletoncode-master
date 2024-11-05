@@ -1,12 +1,12 @@
 package mobappdev.example.nback_cimpl.ui.viewmodels
 
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,25 +17,8 @@ import mobappdev.example.nback_cimpl.GameApplication
 import mobappdev.example.nback_cimpl.NBackHelper
 import mobappdev.example.nback_cimpl.data.UserPreferencesRepository
 
-/**
- * This is the GameViewModel.
- *
- * It is good practice to first make an interface, which acts as the blueprint
- * for your implementation. With this interface we can create fake versions
- * of the viewmodel, which we can use to test other parts of our app that depend on the VM.
- *
- * Our viewmodel itself has functions to start a game, to specify a gametype,
- * and to check if we are having a match
- *
- * Date: 25-08-2023
- * Version: Version 1.0
- * Author: Yeetivity
- *
- */
-
-
 interface GameViewModel {
-    val eventValues: StateFlow<List<Int>> // Corrected type
+    val eventValues: StateFlow<List<Int>>
     val gameState: StateFlow<GameState>
     val score: StateFlow<Int>
     val highscore: StateFlow<Int>
@@ -44,48 +27,93 @@ interface GameViewModel {
     fun setGameType(gameType: GameType)
     fun startGame()
     fun checkMatch()
+    fun playSound()
 }
 
 class GameVM(
     private val userPreferencesRepository: UserPreferencesRepository
-): GameViewModel, ViewModel() {
+) : GameViewModel, ViewModel() {
+
     private val _gameState = MutableStateFlow(GameState())
-    override val gameState: StateFlow<GameState>
-        get() = _gameState.asStateFlow()
+    override val gameState: StateFlow<GameState> = _gameState.asStateFlow()
 
     private val _score = MutableStateFlow(0)
-    override val score: StateFlow<Int>
-        get() = _score
+    override val score: StateFlow<Int> = _score
 
     private val _highscore = MutableStateFlow(0)
-    override val highscore: StateFlow<Int>
-        get() = _highscore
+    override val highscore: StateFlow<Int> = _highscore
 
-    // nBack is currently hardcoded
     override val nBack: Int = 1
 
     private val _eventValues = MutableStateFlow<List<Int>>(emptyList())
     override val eventValues: StateFlow<List<Int>> = _eventValues.asStateFlow()
 
+    private var job: Job? = null
+    private val eventInterval: Long = 2000L
+    private val nBackHelper = NBackHelper()
+    private var events = emptyArray<Int>()
+    private var audioTrack: AudioTrack? = null
 
-    private var job: Job? = null  // coroutine job for the game event
-    private val eventInterval: Long = 2000L  // 2000 ms (2s)
+    init {
+        initializeAudio()
+        viewModelScope.launch {
+            userPreferencesRepository.highscore.collect { _highscore.value = it }
+        }
+    }
 
-    private val nBackHelper = NBackHelper()  // Helper that generate the event array
-    private var events = emptyArray<Int>()  // Array with all events
+    private fun initializeAudio() {
+        val sampleRate = 44100
+        val bufferSize = AudioTrack.getMinBufferSize(
+            sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+
+        audioTrack = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_GAME)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(bufferSize)
+            .build()
+    }
+
+  override fun playSound() {
+        audioTrack?.apply {
+            val soundData = generateBeepSound()
+            if (playState != AudioTrack.PLAYSTATE_PLAYING) {
+                play() // Start playing only if not already in play state
+            }
+            write(soundData, 0, soundData.size)
+        }
+    }
+
+    private fun generateBeepSound(): ShortArray {
+        val duration = 0.5
+        val sampleRate = 44100
+        val numSamples = (duration * sampleRate).toInt()
+        val sound = ShortArray(numSamples)
+        val freq = 440.0
+        for (i in sound.indices) {
+            sound[i] = (Short.MAX_VALUE * Math.sin(2 * Math.PI * i / (sampleRate / freq))).toInt().toShort()
+        }
+        return sound
+    }
 
     override fun setGameType(gameType: GameType) {
-        // update the gametype in the gamestate
         _gameState.value = _gameState.value.copy(gameType = gameType)
     }
 
     override fun startGame() {
-        //Log.d("GameVM", "Start Game button clicked")
-        job?.cancel()  // Cancel any existing game loop
-
-        // Get the events from our C-model (returns IntArray, so we need to convert to Array<Int>)
-        events = nBackHelper.generateNBackString(10, 9, 30, nBack).toList().toTypedArray()  // Todo Higher Grade: currently the size etc. are hardcoded, make these based on user input
-        Log.d("GameVM", "The following sequence was generated: ${events.contentToString()}")
+        job?.cancel()
+        events = nBackHelper.generateNBackString(10, 9, 30, nBack).toList().toTypedArray()
+        Log.d("GameVM", "Generated sequence: ${events.contentToString()}")
 
         job = viewModelScope.launch {
             when (gameState.value.gameType) {
@@ -93,95 +121,63 @@ class GameVM(
                 GameType.AudioVisual -> runAudioVisualGame()
                 GameType.Visual -> runVisualGame(events)
             }
-            // Todo: update the highscore
         }
     }
 
     override fun checkMatch() {
         val currentPos = gameState.value.eventValue
-        val matchCondition = currentPos >= 0 && events.isNotEmpty() && events[currentPos] == currentPos // Example condition
-
+        val matchCondition = currentPos >= 0 && events.isNotEmpty() && events[currentPos] == currentPos
         if (matchCondition) {
             _score.value += 1
             _gameState.value = gameState.value.copy(feedback = "Correct match!")
         } else {
             _gameState.value = gameState.value.copy(feedback = "No match!")
         }
-        /**
-         * Todo: This function should check if there is a match when the user presses a match button
-         * Make sure the user can only register a match once for each event.
-         */
     }
+
     private fun runAudioGame() {
         Log.d("GameVM", "Audio game started")
-        // Todo: Make work for Basic grade
+        playSound()
     }
 
-    private suspend fun runVisualGame(events: Array<Int>){
-        // Todo: Replace this code for actual game code
+    private suspend fun runVisualGame(events: Array<Int>) {
         for (value in events) {
-            _gameState.value = _gameState.value.copy(eventValue = value)
-            _eventValues.value = _eventValues.value + value // Add the event value to the list
+            _gameState.value = gameState.value.copy(eventValue = value)
+            _eventValues.value = _eventValues.value + value
             delay(eventInterval)
         }
-
     }
 
-    private fun runAudioVisualGame(){
-        // Todo: Make work for Higher grade
+    private fun runAudioVisualGame() {
+        Log.d("GameVM", "Audio-visual game started")
+        playSound()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        audioTrack?.release()
+        audioTrack = null
     }
 
     companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as GameApplication)
-                GameVM(application.userPreferencesRespository)
-            }
-        }
-    }
-
-    init {
-        // Code that runs during creation of the vm
-        viewModelScope.launch {
-            userPreferencesRepository.highscore.collect {
-                _highscore.value = it
+        fun provideFactory(application: GameApplication): ViewModelProvider.Factory {
+            return object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(GameVM::class.java)) {
+                        @Suppress("UNCHECKED_CAST")
+                        return GameVM(application.userPreferencesRepository) as T
+                    }
+                    throw IllegalArgumentException("Unknown ViewModel class")
+                }
             }
         }
     }
 }
 
-// Class with the different game types
-enum class GameType{
-    Audio,
-    Visual,
-    AudioVisual
-}
+enum class GameType { Audio, Visual, AudioVisual }
 
 data class GameState(
-    // You can use this state to push values from the VM to your UI.
-    val gameType: GameType = GameType.Visual,  // Type of the game
-    val eventValue: Int = -1,  // The value of the array string
+    val gameType: GameType = GameType.Visual,
+    val eventValue: Int = -1,
     val feedback: String = ""
 )
-
-class FakeVM: GameViewModel{
-    override val eventValues: StateFlow<List<Int>>
-        get() = MutableStateFlow(listOf(1, 2, 3)) // Example values for testing
-    override val gameState: StateFlow<GameState>
-        get() = MutableStateFlow(GameState()).asStateFlow()
-    override val score: StateFlow<Int>
-        get() = MutableStateFlow(2).asStateFlow()
-    override val highscore: StateFlow<Int>
-        get() = MutableStateFlow(42).asStateFlow()
-    override val nBack: Int
-        get() = 2
-
-    override fun setGameType(gameType: GameType) {
-    }
-
-    override fun startGame() {
-    }
-
-    override fun checkMatch() {
-    }
-}

@@ -33,7 +33,6 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import mobappdev.example.nback_cimpl.R
 import mobappdev.example.nback_cimpl.ui.GAME_ROUTE
-import mobappdev.example.nback_cimpl.ui.viewmodels.FakeVM
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameViewModel
 
 /**
@@ -155,14 +154,14 @@ fun HomeScreen(
         }
     }
 
-@Preview
-@Composable
-fun HomeScreenPreview() {
-    // Since I am injecting a VM into my homescreen that depends on Application context, the preview doesn't work.
-    Surface(){
-        HomeScreen(
-            FakeVM(),
-            navController = TODO()
-        )
-    }
-}
+//@Preview
+//@Composable
+//fun HomeScreenPreview() {
+//    // Since I am injecting a VM into my homescreen that depends on Application context, the preview doesn't work.
+//    Surface(){
+//        HomeScreen(
+//            FakeVM(),
+//            navController = TODO()
+//        )
+//    }
+//}
