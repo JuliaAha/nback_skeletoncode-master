@@ -140,19 +140,19 @@ fun HomeScreen(
 //                            .aspectRatio(3f / 2f)
 //                    )
 //                }
-                Button(
-                    onClick = {
-                        // Generate event values and navigate to the Game screen
-                        vm.startGame()
-                        navController.navigate(GAME_ROUTE)
-                    },
-                    modifier = Modifier.padding(top = 24.dp)
-                ) {
-                    Text("Start Game")
-                }
+            Button(
+                onClick = {
+                    // Generate event values and navigate to the Game screen
+                    vm.startGame()
+                    navController.navigate(GAME_ROUTE)
+                },
+                modifier = Modifier.padding(top = 24.dp)
+            ) {
+                Text("Start Game")
             }
         }
     }
+}
 
 //@Preview
 //@Composable
