@@ -12,20 +12,30 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import kotlinx.coroutines.launch
+import mobappdev.example.nback_cimpl.R
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameViewModel
 import mobappdev.example.nback_cimpl.ui.viewmodels.FakeVM
+import mobappdev.example.nback_cimpl.ui.viewmodels.GameType
 
 @Composable
 fun GameScreen(
@@ -34,6 +44,8 @@ fun GameScreen(
 ) {
     val gameState by vm.gameState.collectAsState()
     val score by vm.score.collectAsState()
+    val snackBarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope() // Define the CoroutineScope here
     val currentEventValue = gameState.eventValue  // The current highlighted position in the grid
 
     Scaffold(
@@ -50,7 +62,8 @@ fun GameScreen(
                 }
                 Text(text = "Score: $score", style = MaterialTheme.typography.headlineMedium)
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackBarHostState) } // Add snackbar host here
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -90,17 +103,52 @@ fun GameScreen(
                 }
             }
 
-            // Button for the user to indicate a match
-            Button(
-                onClick = vm::checkMatch,
+            Row(
                 modifier = Modifier
-                    .padding(top = 24.dp)
-                    .fillMaxWidth(0.5f)
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceAround
             ) {
-                Text("Match")
+                // Audio match button
+                Button(
+                    onClick = {
+                        vm.setGameType(GameType.Audio)
+                        vm.checkMatch()
+                        scope.launch {
+                            snackBarHostState.showSnackbar("Audio match attempted")
+                        }
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.sound_on),
+                        contentDescription = "Audio Match",
+                        modifier = Modifier
+                            .height(48.dp)
+                            .aspectRatio(3f / 2f)
+                    )
+                }
+
+                // Visual match button
+                Button(
+                    onClick = {
+                        vm.setGameType(GameType.Visual)
+                        vm.checkMatch()
+                        scope.launch {
+                            snackBarHostState.showSnackbar("Visual match attempted")
+                        }
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.visual),
+                        contentDescription = "Visual Match",
+                        modifier = Modifier
+                            .height(48.dp)
+                            .aspectRatio(3f / 2f)
+                    )
+                }
             }
 
-            // Feedback message if needed
+            // Feedback message
             if (gameState.feedback.isNotBlank()) {
                 Text(
                     text = gameState.feedback,

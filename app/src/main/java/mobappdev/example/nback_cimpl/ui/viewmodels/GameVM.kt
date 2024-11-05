@@ -62,7 +62,7 @@ class GameVM(
         get() = _highscore
 
     // nBack is currently hardcoded
-    override val nBack: Int = 2
+    override val nBack: Int = 1
 
     private val _eventValues = MutableStateFlow<List<Int>>(emptyList())
     override val eventValues: StateFlow<List<Int>> = _eventValues.asStateFlow()
