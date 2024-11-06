@@ -28,6 +28,7 @@ interface GameViewModel {
     fun checkAudioMatch()
     fun checkPlaceMatch()
     fun stopAudio()
+    fun stopGame()
 }
 
 class GameVM(
@@ -80,14 +81,14 @@ class GameVM(
     }
 
     override fun startGame() {
-        job?.cancel()
+        stopGame() // Stop any ongoing game activities before starting a new one
+        _score.value = 0
         readyForMatchCheck = false
         currentIndex = -1
 
         positionSequence.clear()
         letterSequence.clear()
 
-        // Generate random positions and letters
         positionSequence.addAll(nBackHelper.generateNBackString(30, 9, 40, nBack).toList())
         letterSequence.addAll(generateRandomLetters(30))
 
@@ -118,10 +119,12 @@ class GameVM(
                 _activatedPositions.value = emptySet()
                 _gameState.value = _gameState.value.copy(currentPosition = -1)
 
-                delay(eventInterval)
+                //delay(eventInterval)
+                delay(600)
 
-                if (i >= nBack) {
+                if (i == nBack - 1) {
                     readyForMatchCheck = true
+                    Log.d("GameVM", "Ready for match checks")
                 }
             }
         }
@@ -166,6 +169,14 @@ class GameVM(
         }
     }
 
+    override fun stopGame() {
+        job?.cancel() // Cancel any ongoing game actions
+        stopAudio() // Stop any audio that might be playing
+        _activatedPositions.value = emptySet() // Reset activated positions
+        _gameState.value = _gameState.value.copy(currentPosition = -1, currentLetter = ' ', feedback = "")
+        Log.d("GameVM", "Game stopped.")
+    }
+
     private fun updateMatchFeedback(isMatch: Boolean, isAudio: Boolean) {
         val feedbackMessage = if (isMatch) {
             _score.value += 1
@@ -174,6 +185,17 @@ class GameVM(
         } else {
             "No match!"
         }
+
+        // Check if the current score exceeds the high score and update it
+        if (_score.value > _highscore.value) {
+            _highscore.value = _score.value
+
+            // Persist the new high score
+            viewModelScope.launch {
+                userPreferencesRepository.saveHighScore(_highscore.value)
+            }
+        }
+
         Log.d("GameVM", "Updating Match Feedback: $feedbackMessage")
         _gameState.value = _gameState.value.copy(feedback = feedbackMessage)
     }
@@ -185,8 +207,9 @@ class GameVM(
 
     override fun onCleared() {
         super.onCleared()
+        stopGame() // Ensure all ongoing tasks are stopped
         textToSpeech?.shutdown()
-        Log.d("GameVM", "TextToSpeech shutdown.")
+        Log.d("GameVM", "Game stopped and TextToSpeech shutdown.")
     }
 
     companion object {

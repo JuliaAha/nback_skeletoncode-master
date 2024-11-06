@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import mobappdev.example.nback_cimpl.ui.HOME_ROUTE
 import kotlinx.coroutines.launch
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameViewModel
 import androidx.navigation.NavController
@@ -20,9 +21,16 @@ fun GameScreen(
 ) {
     val gameState by vm.gameState.collectAsState()
     val score by vm.score.collectAsState()
-    val activatedPositions by vm.activatedPositions.collectAsState() // Collect activated positions
+    val activatedPositions by vm.activatedPositions.collectAsState()
     val snackBarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // Use DisposableEffect to stop the game when the GameScreen is disposed
+    DisposableEffect(Unit) {
+        onDispose {
+            vm.stopGame() // Stop game when leaving the screen
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -33,8 +41,10 @@ fun GameScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(onClick = { navController?.navigate("home") }) {
-                    vm.stopAudio() // Stop audio when going back
+                Button(onClick = {
+                    vm.stopGame() // Stop the game explicitly when clicking back
+                    navController?.navigate(HOME_ROUTE)
+                }) {
                     Text("Back")
                 }
                 Text(text = "Score: $score", style = MaterialTheme.typography.headlineMedium)
