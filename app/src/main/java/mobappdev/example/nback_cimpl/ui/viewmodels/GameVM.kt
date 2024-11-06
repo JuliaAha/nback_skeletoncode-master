@@ -13,27 +13,32 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import mobappdev.example.nback_cimpl.GameApplication
+import mobappdev.example.nback_cimpl.NBackHelper
 import mobappdev.example.nback_cimpl.data.UserPreferencesRepository
 import java.util.*
 
 interface GameViewModel {
-    val visualSequence: StateFlow<List<Int>>
     val gameState: StateFlow<GameState>
     val score: StateFlow<Int>
     val highscore: StateFlow<Int>
+    val activatedPositions: StateFlow<Set<Int>>
     val nBack: Int
 
     fun setGameType(gameType: GameType)
     fun startGame()
     fun checkAudioMatch()
     fun checkPlaceMatch()
+    fun stopAudio()
 }
 
 class GameVM(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val context: Context,
-    override val nBack: Int = 2
-) : GameViewModel, ViewModel(), TextToSpeech.OnInitListener {
+    override val nBack: Int = 1
+) : ViewModel(), GameViewModel, TextToSpeech.OnInitListener {
+
+    private val _activatedPositions = MutableStateFlow<Set<Int>>(emptySet())
+    override val activatedPositions: StateFlow<Set<Int>> get() = _activatedPositions
 
     private val _gameState = MutableStateFlow(GameState())
     override val gameState: StateFlow<GameState> = _gameState.asStateFlow()
@@ -44,15 +49,15 @@ class GameVM(
     private val _highscore = MutableStateFlow(0)
     override val highscore: StateFlow<Int> = _highscore
 
-    private val _visualSequence = MutableStateFlow<List<Int>>(emptyList())
-    override val visualSequence: StateFlow<List<Int>> = _visualSequence.asStateFlow()
-
-    private val _audioSequence = MutableStateFlow<List<Char>>(emptyList())
+    private val nBackHelper = NBackHelper()
     private var job: Job? = null
     private val eventInterval: Long = 2000L
+    private var events: MutableList<Int> = mutableListOf()
+    private var lettersSequence: MutableList<Char> = mutableListOf()
 
     private var textToSpeech: TextToSpeech? = null
-    private var readyForMatchCheck = false // Flag to ensure stable match checking
+    private var readyForMatchCheck = false
+    private var currentIndex: Int = -1
 
     init {
         textToSpeech = TextToSpeech(context, this)
@@ -70,91 +75,98 @@ class GameVM(
         }
     }
 
-    override fun startGame() {
-        job?.cancel()
-        readyForMatchCheck = false // Disable matching during sequence update
-        val visualSequence = generatePositionSequence(30)
-        val audioSequence = generateLetterSequence(30)
-
-        _visualSequence.value = visualSequence
-        _audioSequence.value = audioSequence
-        Log.d("GameVM", "Visual sequence: $visualSequence")
-        Log.d("GameVM", "Audio sequence: $audioSequence")
-
-        job = viewModelScope.launch {
-            for (i in visualSequence.indices) {
-                if (textToSpeech == null) {
-                    Log.e("GameVM", "TextToSpeech is not initialized.")
-                    return@launch
-                }
-                _gameState.value = _gameState.value.copy(
-                    currentPosition = visualSequence[i],
-                    currentLetter = audioSequence[i]
-                )
-                playAudioLetter(audioSequence[i])
-                delay(eventInterval)
-            }
-            readyForMatchCheck = true // Enable match checking after sequences are stable
-        }
-    }
-
-    private fun generatePositionSequence(size: Int): List<Int> {
-        val positions = mutableListOf<Int>()
-        for (i in 0 until size) {
-            if (i >= nBack && (0..1).random() == 0) {  // 50% chance of repeating the n-back position
-                positions.add(positions[i - nBack])
-            } else {
-                positions.add((0..8).random())
-            }
-        }
-        return positions
-    }
-
-    private fun generateLetterSequence(size: Int): List<Char> {
-        val alphabet = ('A'..'Z').toList()
-        val letters = mutableListOf<Char>()
-        for (i in 0 until size) {
-            if (i >= nBack && (0..1).random() == 0) {  // 50% chance of repeating the n-back letter
-                letters.add(letters[i - nBack])
-            } else {
-                letters.add(alphabet.random())
-            }
-        }
-        return letters
-    }
-
     private fun playAudioLetter(letter: Char) {
         textToSpeech?.speak(letter.toString(), TextToSpeech.QUEUE_FLUSH, null, null)
+        Log.d("GameVM", "Playing audio for letter: $letter")
+    }
+
+    override fun startGame() {
+        job?.cancel()
+        readyForMatchCheck = false
+        currentIndex = -1
+
+        events.clear()
+        lettersSequence.clear()
+
+        // Generate independent random positions and letters using nBackHelper
+        val generatedEvents = nBackHelper.generateNBackString(30, 9, 40, nBack).toList()
+        val generatedLetters = nBackHelper.generateNBackString(30, 26, 40, nBack).map { ('A' + it) }.toList()
+
+        events.addAll(generatedEvents)
+        lettersSequence.addAll(generatedLetters)
+
+        Log.d("GameVM", "Generated Position Sequence: $events")
+        Log.d("GameVM", "Generated Letters Sequence: $lettersSequence")
+
+        job = viewModelScope.launch {
+            delay(500) // Delay to allow TextToSpeech to be ready
+
+            for (i in events.indices) {
+                currentIndex = i
+                val currentPosition = events[i]
+                val currentLetter = lettersSequence[i]
+
+                Log.d("GameVM", "Current Index: $i, Current Position: $currentPosition, Current Letter: $currentLetter")
+
+                _gameState.value = _gameState.value.copy(
+                    currentPosition = currentPosition,
+                    currentLetter = currentLetter
+                )
+
+                _activatedPositions.value = setOf(currentPosition)
+                playAudioLetter(currentLetter)
+
+                delay(eventInterval)
+
+                _activatedPositions.value = emptySet()
+                _gameState.value = _gameState.value.copy(currentPosition = -1)
+
+                delay(eventInterval)
+
+                if (i >= nBack) {
+                    readyForMatchCheck = true
+                }
+            }
+        }
     }
 
     override fun checkAudioMatch() {
-        if (!readyForMatchCheck) {
-            Log.d("GameVM", "Audio match check attempted before sequence was ready.")
+        if (!readyForMatchCheck || currentIndex < nBack) {
+            Log.d("GameVM", "Audio match check attempted before sequence was ready or not enough data.")
             _gameState.value = _gameState.value.copy(feedback = "No match!")
             return
         }
 
-        val currentPos = _audioSequence.value.size - 1
-        val matchPos = currentPos - nBack
-        val audioMatch = matchPos >= 0 && _audioSequence.value.getOrNull(matchPos) == _audioSequence.value.getOrNull(currentPos)
+        val matchIndex = currentIndex - nBack
+        val expectedLetter = lettersSequence[matchIndex]
+        val currentLetter = lettersSequence[currentIndex]
+        val audioMatch = expectedLetter == currentLetter
 
-        Log.d("GameVM", "Audio Match: $audioMatch at positions $matchPos and $currentPos")
+        Log.d("GameVM", "Checking Audio Match: Expected Letter: $expectedLetter, Current Letter: $currentLetter, Match: $audioMatch")
         updateMatchFeedback(audioMatch, isAudio = true)
     }
 
     override fun checkPlaceMatch() {
-        if (!readyForMatchCheck) {
-            Log.d("GameVM", "Place match check attempted before sequence was ready.")
+        if (!readyForMatchCheck || currentIndex < nBack) {
+            Log.d("GameVM", "Place match check attempted before sequence was ready or not enough data.")
             _gameState.value = _gameState.value.copy(feedback = "No match!")
             return
         }
 
-        val currentPos = _visualSequence.value.size - 1
-        val matchPos = currentPos - nBack
-        val visualMatch = matchPos >= 0 && _visualSequence.value.getOrNull(matchPos) == _visualSequence.value.getOrNull(currentPos)
+        val matchIndex = currentIndex - nBack
+        val expectedPosition = events[matchIndex]
+        val currentPosition = events[currentIndex]
+        val visualMatch = expectedPosition == currentPosition
 
-        Log.d("GameVM", "Visual Match: $visualMatch at positions $matchPos and $currentPos")
+        Log.d("GameVM", "Checking Place Match: Expected Position: $expectedPosition, Current Position: $currentPosition, Match: $visualMatch")
         updateMatchFeedback(visualMatch, isAudio = false)
+    }
+
+    override fun stopAudio() {
+        if (textToSpeech?.isSpeaking == true) {
+            textToSpeech?.stop()
+            Log.d("GameVM", "TextToSpeech stopped.")
+        }
     }
 
     private fun updateMatchFeedback(isMatch: Boolean, isAudio: Boolean) {
@@ -165,6 +177,7 @@ class GameVM(
         } else {
             "No match!"
         }
+        Log.d("GameVM", "Updating Match Feedback: $feedbackMessage")
         _gameState.value = _gameState.value.copy(feedback = feedbackMessage)
     }
 
@@ -175,6 +188,7 @@ class GameVM(
     override fun onCleared() {
         super.onCleared()
         textToSpeech?.shutdown()
+        Log.d("GameVM", "TextToSpeech shutdown.")
     }
 
     companion object {

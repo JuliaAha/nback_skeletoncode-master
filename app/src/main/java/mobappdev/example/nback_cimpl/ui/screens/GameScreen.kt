@@ -20,6 +20,7 @@ fun GameScreen(
 ) {
     val gameState by vm.gameState.collectAsState()
     val score by vm.score.collectAsState()
+    val activatedPositions by vm.activatedPositions.collectAsState() // Collect activated positions
     val snackBarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -33,6 +34,7 @@ fun GameScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(onClick = { navController?.navigate("home") }) {
+                    vm.stopAudio() // Stop audio when going back
                     Text("Back")
                 }
                 Text(text = "Score: $score", style = MaterialTheme.typography.headlineMedium)
@@ -67,7 +69,11 @@ fun GameScreen(
                                     .padding(4.dp)
                                     .size(80.dp)
                                     .background(
-                                        color = if (index == gameState.currentPosition) Color.Green else Color.Gray
+                                        color = when {
+                                            index == gameState.currentPosition -> Color.Green
+                                            activatedPositions.contains(index) -> Color.Gray
+                                            else -> Color.LightGray // Use a neutral color for unactivated positions
+                                        }
                                     )
                             )
                         }
