@@ -24,7 +24,6 @@ interface GameViewModel {
     val activatedPositions: StateFlow<Set<Int>>
     val nBack: Int
 
-    fun setGameType(gameType: GameType)
     fun startGame()
     fun checkAudioMatch()
     fun checkPlaceMatch()
@@ -52,12 +51,12 @@ class GameVM(
     private val nBackHelper = NBackHelper()
     private var job: Job? = null
     private val eventInterval: Long = 2000L
-    private var events: MutableList<Int> = mutableListOf()
-    private var lettersSequence: MutableList<Char> = mutableListOf()
+    private var positionSequence: MutableList<Int> = mutableListOf()
+    private var letterSequence: MutableList<Char> = mutableListOf()
 
     private var textToSpeech: TextToSpeech? = null
-    private var readyForMatchCheck = false
     private var currentIndex: Int = -1
+    private var readyForMatchCheck = false
 
     init {
         textToSpeech = TextToSpeech(context, this)
@@ -85,29 +84,27 @@ class GameVM(
         readyForMatchCheck = false
         currentIndex = -1
 
-        events.clear()
-        lettersSequence.clear()
+        positionSequence.clear()
+        letterSequence.clear()
 
-        // Generate independent random positions and letters using nBackHelper
-        val generatedEvents = nBackHelper.generateNBackString(30, 9, 40, nBack).toList()
-        val generatedLetters = nBackHelper.generateNBackString(30, 26, 40, nBack).map { ('A' + it) }.toList()
+        // Generate random positions and letters
+        positionSequence.addAll(nBackHelper.generateNBackString(30, 9, 40, nBack).toList())
+        letterSequence.addAll(generateRandomLetters(30))
 
-        events.addAll(generatedEvents)
-        lettersSequence.addAll(generatedLetters)
-
-        Log.d("GameVM", "Generated Position Sequence: $events")
-        Log.d("GameVM", "Generated Letters Sequence: $lettersSequence")
+        Log.d("GameVM", "Generated Position Sequence: $positionSequence")
+        Log.d("GameVM", "Generated Letters Sequence: $letterSequence")
 
         job = viewModelScope.launch {
-            delay(500) // Delay to allow TextToSpeech to be ready
+            delay(500) // Allow time for TextToSpeech to be ready
 
-            for (i in events.indices) {
+            for (i in positionSequence.indices) {
                 currentIndex = i
-                val currentPosition = events[i]
-                val currentLetter = lettersSequence[i]
+                val currentPosition = positionSequence[i]
+                val currentLetter = letterSequence[i]
 
                 Log.d("GameVM", "Current Index: $i, Current Position: $currentPosition, Current Letter: $currentLetter")
 
+                // Update the UI to reflect current position and letter
                 _gameState.value = _gameState.value.copy(
                     currentPosition = currentPosition,
                     currentLetter = currentLetter
@@ -138,8 +135,8 @@ class GameVM(
         }
 
         val matchIndex = currentIndex - nBack
-        val expectedLetter = lettersSequence[matchIndex]
-        val currentLetter = lettersSequence[currentIndex]
+        val expectedLetter = letterSequence[matchIndex]
+        val currentLetter = letterSequence[currentIndex]
         val audioMatch = expectedLetter == currentLetter
 
         Log.d("GameVM", "Checking Audio Match: Expected Letter: $expectedLetter, Current Letter: $currentLetter, Match: $audioMatch")
@@ -154,8 +151,8 @@ class GameVM(
         }
 
         val matchIndex = currentIndex - nBack
-        val expectedPosition = events[matchIndex]
-        val currentPosition = events[currentIndex]
+        val expectedPosition = positionSequence[matchIndex]
+        val currentPosition = positionSequence[currentIndex]
         val visualMatch = expectedPosition == currentPosition
 
         Log.d("GameVM", "Checking Place Match: Expected Position: $expectedPosition, Current Position: $currentPosition, Match: $visualMatch")
@@ -181,8 +178,9 @@ class GameVM(
         _gameState.value = _gameState.value.copy(feedback = feedbackMessage)
     }
 
-    override fun setGameType(gameType: GameType) {
-        _gameState.value = _gameState.value.copy(gameType = gameType)
+    private fun generateRandomLetters(count: Int): List<Char> {
+        val random = Random()
+        return List(count) { ('A' + random.nextInt(26)) }
     }
 
     override fun onCleared() {
@@ -206,10 +204,7 @@ class GameVM(
     }
 }
 
-enum class GameType { Audio, Visual, AudioVisual }
-
 data class GameState(
-    val gameType: GameType = GameType.Visual,
     val currentPosition: Int = -1,
     val currentLetter: Char = ' ',
     val feedback: String = ""
