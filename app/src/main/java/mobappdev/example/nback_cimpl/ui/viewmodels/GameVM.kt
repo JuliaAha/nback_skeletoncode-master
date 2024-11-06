@@ -52,8 +52,8 @@ class GameVM(
     private val nBackHelper = NBackHelper()
     private var job: Job? = null
     private val eventInterval: Long = 2000L
-    private var positionSequence: MutableList<Int> = mutableListOf()
-    private var letterSequence: MutableList<Char> = mutableListOf()
+    private var positionSequence: List<Int> = listOf()
+    private var letterSequence: List<Char> = listOf()
 
     private var textToSpeech: TextToSpeech? = null
     private var currentIndex: Int = -1
@@ -86,11 +86,9 @@ class GameVM(
         readyForMatchCheck = false
         currentIndex = -1
 
-        positionSequence.clear()
-        letterSequence.clear()
-
-        positionSequence.addAll(nBackHelper.generateNBackString(30, 9, 40, nBack).toList())
-        letterSequence.addAll(generateRandomLetters(30))
+        // Generate new sequences using NBackHelper for both positions and letters
+        positionSequence = nBackHelper.generateNBackString(30, 9, 40, nBack).toList()
+        letterSequence = generateLetterSequenceWithRepeat(30)
 
         Log.d("GameVM", "Generated Position Sequence: $positionSequence")
         Log.d("GameVM", "Generated Letters Sequence: $letterSequence")
@@ -105,27 +103,47 @@ class GameVM(
 
                 Log.d("GameVM", "Current Index: $i, Current Position: $currentPosition, Current Letter: $currentLetter")
 
-                // Update the UI to reflect current position and letter
+                // Activate the current tile
+                _activatedPositions.value = setOf(currentPosition)
                 _gameState.value = _gameState.value.copy(
                     currentPosition = currentPosition,
                     currentLetter = currentLetter
                 )
 
-                _activatedPositions.value = setOf(currentPosition)
+                // Play the audio letter
                 playAudioLetter(currentLetter)
 
+                // Keep the tile activated for the event interval
                 delay(eventInterval)
 
+                // Deactivate the tile after the event interval
                 _activatedPositions.value = emptySet()
                 _gameState.value = _gameState.value.copy(currentPosition = -1)
 
-                //delay(eventInterval)
+                // Allow a small delay for better visual clarity
                 delay(600)
 
+                // Set ready for match check after processing enough elements
                 if (i == nBack - 1) {
                     readyForMatchCheck = true
                     Log.d("GameVM", "Ready for match checks")
                 }
+            }
+        }
+    }
+
+    private fun generateLetterSequenceWithRepeat(size: Int): List<Char> {
+        val tempSequence = nBackHelper.generateNBackString(size, 26, 40, nBack).toList().map { index ->
+            ('A' + (index % 26))
+        }
+        val random = Random()
+
+        return tempSequence.mapIndexed { index, char ->
+            if (index > 0 && random.nextFloat() < 0.5) {
+                // 50% chance to repeat the previous letter
+                tempSequence[index - 1]
+            } else {
+                char
             }
         }
     }
@@ -200,11 +218,6 @@ class GameVM(
         _gameState.value = _gameState.value.copy(feedback = feedbackMessage)
     }
 
-    private fun generateRandomLetters(count: Int): List<Char> {
-        val random = Random()
-        return List(count) { ('A' + random.nextInt(26)) }
-    }
-
     override fun onCleared() {
         super.onCleared()
         stopGame() // Ensure all ongoing tasks are stopped
@@ -226,6 +239,7 @@ class GameVM(
         }
     }
 }
+
 
 data class GameState(
     val currentPosition: Int = -1,

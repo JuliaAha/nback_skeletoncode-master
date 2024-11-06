@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <jni.h>
+#include <unistd.h>
 #include "nback.h"
 
 #define CONTENT_MAX_SIZE 100
@@ -40,12 +41,19 @@ int getIndexOf(Nback s, int i){
 }
 
 
-void createNBackString(int nBackString[], int size, int combinations, int matchPercentage, int nback){
-    // Seed the random number generator
-    srand((unsigned)time(NULL));
+void initializeRandomSeed() {
+    static int initialized = 0;
+    if (!initialized) {
+        srand((unsigned)time(NULL) + (unsigned)getpid()); // Unique seed for each program run
+        initialized = 1;
+    }
+}
+
+void createNBackString(int nBackString[], int size, int combinations, int matchPercentage, int nback) {
+    initializeRandomSeed();
 
     // Initialize all elements in nBackString to 0
-    for(int i = 0; i<size; i++){
+    for (int i = 0; i < size; i++) {
         nBackString[i] = 0;
     }
 
@@ -53,13 +61,12 @@ void createNBackString(int nBackString[], int size, int combinations, int matchP
     int matches = (int) size * matchPercentage / 100;
 
     // Fill in the specified number of matches into the nBackString
-    for(int i = 0; i<matches; i++){
+    for (int i = 0; i < matches; i++) {
         fillInAMatch(nBackString, size, combinations, nback);
     }
 
     // Fill in the remaining empty elements in nBackString
     fillInAllEmpty(nBackString, size, combinations, nback);
-
 }
 
 // Function to fill in a match (value and corresponding nBackString elements)
