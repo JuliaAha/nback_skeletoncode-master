@@ -32,6 +32,7 @@ interface GameViewModel {
     fun checkPlaceMatch()
     fun stopAudio()
     fun stopGame()
+    fun setGameType(gameType: GameType)
 }
 
 class GameVM(
@@ -64,6 +65,10 @@ class GameVM(
     private val matchCheckedPositions = mutableSetOf<Int>()
     private val matchCheckedAudio = mutableSetOf<Int>()
 
+    override fun setGameType(gameType: GameType) {
+        _gameState.value = _gameState.value.copy(gameType = gameType)
+    }
+
     init {
         textToSpeech = TextToSpeech(context, this)
         viewModelScope.launch {
@@ -89,7 +94,7 @@ class GameVM(
     }
 
     override fun startGame() {
-        stopGame() // Stop any existing game session
+        stopGame()
         _score.value = 0
         matchCheckedPositions.clear()
         matchCheckedAudio.clear()
@@ -102,13 +107,10 @@ class GameVM(
                 return@launch
             }
 
-            // Update gridSize in GameState
             _gameState.value = _gameState.value.copy(gridSize = settings.gridSize)
 
-            // Apply dynamic grid size
             val gridRange = settings.gridSize * settings.gridSize
             positionSequence = nBackHelper.generateNBackString(settings.numberOfEvents, gridRange, 40, settings.nBackLevel).toList()
-            // Limit letter sequence to specified `audioLetterCount`
             letterSequence = generateLimitedLetterSequence(settings.numberOfEvents, settings.audioLetterCount)
 
             job = viewModelScope.launch {
@@ -120,13 +122,17 @@ class GameVM(
                     val currentLetter = letterSequence[i]
 
                     Log.d("GameVM", "Activating tile at position $currentPosition with letter $currentLetter")
+
                     _activatedPositions.value = setOf(currentPosition)
                     _gameState.value = _gameState.value.copy(
                         currentPosition = currentPosition,
                         currentLetter = currentLetter
                     )
                     delay(50)
-                    playAudioLetter(currentLetter)
+
+                    if(gameState.value.gameType == GameType.AudioVisual || gameState.value.gameType == GameType.Audio){
+                        playAudioLetter(currentLetter)
+                    }
 
                     delay(settings.eventInterval.toLong())
 
@@ -147,20 +153,6 @@ class GameVM(
         return false
     }
 
-//    private fun generateLetterSequenceWithRepeat(size: Int): List<Char> {
-//        val tempSequence = nBackHelper.generateNBackString(size, 26, 40, nBack).toList().map { index ->
-//            ('A' + (index % 26))
-//        }
-//        val random = Random()
-//
-//        return tempSequence.mapIndexed { index, char ->
-//            if (index > 0 && random.nextFloat() < 0.5) {
-//                tempSequence[index - 1]
-//            } else {
-//                char
-//            }
-//        }
-//    }
     private fun generateLimitedLetterSequence(size: Int, maxUniqueLetters: Int): List<Char> {
         val letterPool = ('A' until 'A' + maxUniqueLetters).toList()
         val random = Random()
@@ -233,9 +225,15 @@ class GameVM(
     }
 }
 
+enum class GameType{
+    Audio,
+    Visual,
+    AudioVisual
+}
 data class GameState(
     val currentPosition: Int = -1,
     val currentLetter: Char = ' ',
     val feedback: String = "",
-    val gridSize: Int = 3
+    val gridSize: Int = 3,
+    val gameType: GameType = GameType.AudioVisual
 )

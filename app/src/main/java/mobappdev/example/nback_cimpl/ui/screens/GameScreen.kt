@@ -14,23 +14,25 @@ import androidx.compose.ui.unit.dp
 import mobappdev.example.nback_cimpl.ui.HOME_ROUTE
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameViewModel
 import androidx.navigation.NavController
+import mobappdev.example.nback_cimpl.data.UserPreferencesRepository
+import mobappdev.example.nback_cimpl.ui.viewmodels.GameType
 
 @Composable
 fun GameScreen(
     vm: GameViewModel,
-    navController: NavController? = null
+    //svm: UserPreferencesRepository,
+    navController: NavController? = null,
+    gameMode: String
 ) {
     val gameState by vm.gameState.collectAsState()
+    val gameType = gameState.gameType
     val score by vm.score.collectAsState()
-    val activatedPositions by vm.activatedPositions.collectAsState()
     val snackBarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val gridSize = gameState.gridSize  // Now ensured to be set in GameState
+    val gridSize = gameState.gridSize
 
-    // Use DisposableEffect to stop the game when the GameScreen is disposed
     DisposableEffect(Unit) {
         onDispose {
-            vm.stopGame() // Stop game when leaving the screen
+            vm.stopGame()
         }
     }
 
@@ -44,7 +46,7 @@ fun GameScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(onClick = {
-                    vm.stopGame() // Stop the game explicitly when clicking back
+                    vm.stopGame()
                     navController?.navigate(HOME_ROUTE)
                 }) {
                     Text("Back")
@@ -67,12 +69,11 @@ fun GameScreen(
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            // LazyVerticalGrid based on gridSize for large grids
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridSize),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)  // Allow the grid to expand within available space
+                    .weight(1f)
             ) {
                 items(gridSize * gridSize) { index ->
                     Box(
@@ -81,8 +82,8 @@ fun GameScreen(
                             .aspectRatio(1f)  // Ensures each tile is square
                             .background(
                                 color = when {
-                                    index == gameState.currentPosition -> Color.Green
-                                    activatedPositions.contains(index) -> Color.Gray
+                                    index == gameState.currentPosition && (gameType == GameType.Visual || gameType == GameType.AudioVisual)-> Color.Green
+                                    //activatedPositions.contains(index) -> Color.Gray
                                     else -> Color.LightGray
                                 }
                             )
@@ -90,22 +91,20 @@ fun GameScreen(
                 }
             }
 
-            // Display the current letter
             Text(
                 text = "Current Letter: ${gameState.currentLetter}",
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(16.dp)
             )
 
-            // Check buttons and feedback
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                Button(onClick = { vm.checkAudioMatch() }) { Text("Check Audio") }
-                Button(onClick = { vm.checkPlaceMatch() }) { Text("Check Place") }
+                if(gameType != GameType.Visual) Button(onClick = { vm.checkAudioMatch() }) { Text("Check Audio") }
+                if(gameType != GameType.Audio) Button(onClick = { vm.checkPlaceMatch() }) { Text("Check Place") }
             }
 
             // Feedback message

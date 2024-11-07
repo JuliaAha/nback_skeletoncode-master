@@ -15,8 +15,8 @@ data class Settings(
     val numberOfEvents: Int = 20,
     val eventInterval: Int = 1000,
     val nBackLevel: Int = 1,
-    val gridSize: Int = 3,  // New field for grid size
-    val audioLetterCount: Int = 5  // New field for number of audio letters
+    val gridSize: Int = 3,
+    val audioLetterCount: Int = 5
 )
 
 class UserPreferencesRepository (
@@ -64,11 +64,11 @@ class UserPreferencesRepository (
             )
         }
 
-    suspend fun saveHighScore(score: Int) {
-        dataStore.edit { preferences ->
-            preferences[HIGHSCORE] = score
-        }
-    }
+//    suspend fun saveHighScore(score: Int) {
+//        dataStore.edit { preferences ->
+//            preferences[HIGHSCORE] = score
+//        }
+//    }
 
     suspend fun updateNumberOfEvents(events: Int) {
         dataStore.edit { preferences ->

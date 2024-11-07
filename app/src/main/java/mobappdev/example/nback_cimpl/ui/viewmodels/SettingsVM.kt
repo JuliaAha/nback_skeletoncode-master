@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import mobappdev.example.nback_cimpl.GameApplication
 import mobappdev.example.nback_cimpl.data.Settings
@@ -28,7 +27,6 @@ class SettingsViewModel(
         }
     }
 
-    // Methods to update each setting in the repository
     fun setNumberOfEvents(events: Int) {
         viewModelScope.launch {
             userPreferencesRepository.updateNumberOfEvents(events)
@@ -47,7 +45,6 @@ class SettingsViewModel(
         }
     }
 
-    // New methods for grid size and audio letter count
     fun setGridSize(size: Int) {
         viewModelScope.launch {
             userPreferencesRepository.updateGridSize(size)
