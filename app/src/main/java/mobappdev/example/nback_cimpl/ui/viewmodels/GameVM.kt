@@ -108,7 +108,8 @@ class GameVM(
             // Apply dynamic grid size
             val gridRange = settings.gridSize * settings.gridSize
             positionSequence = nBackHelper.generateNBackString(settings.numberOfEvents, gridRange, 40, settings.nBackLevel).toList()
-            letterSequence = generateLetterSequenceWithRepeat(settings.numberOfEvents)
+            // Limit letter sequence to specified `audioLetterCount`
+            letterSequence = generateLimitedLetterSequence(settings.numberOfEvents, settings.audioLetterCount)
 
             job = viewModelScope.launch {
                 if (!waitForTTSReady()) return@launch
@@ -146,20 +147,28 @@ class GameVM(
         return false
     }
 
-    private fun generateLetterSequenceWithRepeat(size: Int): List<Char> {
-        val tempSequence = nBackHelper.generateNBackString(size, 26, 40, nBack).toList().map { index ->
-            ('A' + (index % 26))
-        }
+//    private fun generateLetterSequenceWithRepeat(size: Int): List<Char> {
+//        val tempSequence = nBackHelper.generateNBackString(size, 26, 40, nBack).toList().map { index ->
+//            ('A' + (index % 26))
+//        }
+//        val random = Random()
+//
+//        return tempSequence.mapIndexed { index, char ->
+//            if (index > 0 && random.nextFloat() < 0.5) {
+//                tempSequence[index - 1]
+//            } else {
+//                char
+//            }
+//        }
+//    }
+    private fun generateLimitedLetterSequence(size: Int, maxUniqueLetters: Int): List<Char> {
+        val letterPool = ('A' until 'A' + maxUniqueLetters).toList()
         val random = Random()
-
-        return tempSequence.mapIndexed { index, char ->
-            if (index > 0 && random.nextFloat() < 0.5) {
-                tempSequence[index - 1]
-            } else {
-                char
-            }
+        return List(size) {
+            letterPool[random.nextInt(letterPool.size)]
         }
     }
+
 
     override fun checkAudioMatch() {
         if (currentIndex.value >= nBack) {
