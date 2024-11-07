@@ -41,30 +41,6 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Dropdown for N-Back Level
-        Text(text = "N-Back Level: ${settings.nBackLevel}")
-        var expanded by remember { mutableStateOf(false) }
-        Box {
-            Button(onClick = { expanded = true }) {
-                Text(text = "Select N-Back Level")
-            }
-
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                (1..5).forEach { level ->
-                    DropdownMenuItem(
-                        text = { Text(text = "Level $level") },
-                        onClick = {
-                            viewModel.setNBackLevel(level)
-                            expanded = false
-                        }
-                    )
-                }
-            }
-        }
-
         Spacer(modifier = Modifier.height(16.dp))
 
         // Slider for Grid Size

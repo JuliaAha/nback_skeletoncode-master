@@ -20,10 +20,12 @@ import mobappdev.example.nback_cimpl.ui.viewmodels.GameType
 fun GameScreen(
     vm: GameViewModel,
     navController: NavController? = null,
+    gameMode: String
 ) {
     val gameState by vm.gameState.collectAsState()
     val gameType = gameState.gameType
     val score by vm.score.collectAsState()
+    val currentIndex by vm.currentIndex.collectAsState()
     val snackBarHostState = remember { SnackbarHostState() }
     val gridSize = gameState.gridSize
     val activatedPositions by vm.activatedPositions.collectAsState() // Collects the latest value as State
@@ -65,6 +67,11 @@ fun GameScreen(
                 text = "N-Back Game",
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(bottom = 24.dp)
+            )
+            Text(
+                text = "Current Event Number: ${currentIndex + 1}",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(8.dp)
             )
 
             LazyVerticalGrid(
