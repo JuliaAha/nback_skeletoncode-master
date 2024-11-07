@@ -67,6 +67,7 @@ fun HomeScreen(
 
             Button(
                 onClick = {
+                    vm.setGameType(GameType.AudioVisual)
                     vm.startGame()
                     navController.navigate(GAME_ROUTE)
                 },
@@ -77,6 +78,7 @@ fun HomeScreen(
             Button(
                 onClick = {
                     vm.setGameType(GameType.Visual)
+                    vm.startGame()
                     navController.navigate(GAME_ROUTE)
                 },
                 modifier = Modifier.padding(top = 24.dp)
@@ -86,11 +88,12 @@ fun HomeScreen(
             Button(
                 onClick = {
                     vm.setGameType(GameType.Audio)
+                    vm.startGame()
                     navController.navigate(GAME_ROUTE)
                 },
                 modifier = Modifier.padding(top = 24.dp)
             ) {
-                Text("Start Game Place Only")
+                Text("Start Game Audio Only")
             }
         }
     }

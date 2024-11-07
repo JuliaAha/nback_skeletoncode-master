@@ -14,21 +14,19 @@ import androidx.compose.ui.unit.dp
 import mobappdev.example.nback_cimpl.ui.HOME_ROUTE
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameViewModel
 import androidx.navigation.NavController
-import mobappdev.example.nback_cimpl.data.UserPreferencesRepository
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameType
 
 @Composable
 fun GameScreen(
     vm: GameViewModel,
-    //svm: UserPreferencesRepository,
     navController: NavController? = null,
-    gameMode: String
 ) {
     val gameState by vm.gameState.collectAsState()
     val gameType = gameState.gameType
     val score by vm.score.collectAsState()
     val snackBarHostState = remember { SnackbarHostState() }
     val gridSize = gameState.gridSize
+    val activatedPositions by vm.activatedPositions.collectAsState() // Collects the latest value as State
 
     DisposableEffect(Unit) {
         onDispose {
@@ -75,27 +73,41 @@ fun GameScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                items(gridSize * gridSize) { index ->
-                    Box(
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .aspectRatio(1f)  // Ensures each tile is square
-                            .background(
-                                color = when {
-                                    index == gameState.currentPosition && (gameType == GameType.Visual || gameType == GameType.AudioVisual)-> Color.Green
-                                    //activatedPositions.contains(index) -> Color.Gray
-                                    else -> Color.LightGray
-                                }
+                    items(gridSize * gridSize) { index ->
+                        if (gameType != GameType.Audio) {
+                        Box(
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .aspectRatio(1f)  // Ensures each tile is square
+                                .background(
+                                    color = when {
+                                        index in activatedPositions -> Color.Green
+                                        else -> Color.LightGray
+                                    }
+                                )
+                        )
+                        }
+                        else{
+                            Box(
+                                modifier = Modifier
+                                    .padding(4.dp)
+                                    .aspectRatio(1f)  // Ensures each tile is square
+                                    .background(
+                                        color = Color.LightGray
+
+                                    )
                             )
-                    )
-                }
+                        }
+                    }
             }
 
-            Text(
-                text = "Current Letter: ${gameState.currentLetter}",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(16.dp)
-            )
+            if(gameType != GameType.Visual){
+                Text(
+                    text = "Current Letter: ${gameState.currentLetter}",
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
 
             Row(
                 modifier = Modifier
@@ -107,7 +119,6 @@ fun GameScreen(
                 if(gameType != GameType.Audio) Button(onClick = { vm.checkPlaceMatch() }) { Text("Check Place") }
             }
 
-            // Feedback message
             if (gameState.feedback.isNotBlank()) {
                 Text(
                     text = gameState.feedback,
@@ -119,3 +130,4 @@ fun GameScreen(
         }
     }
 }
+

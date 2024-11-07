@@ -123,6 +123,11 @@ class GameVM(
 
                     Log.d("GameVM", "Activating tile at position $currentPosition with letter $currentLetter")
 
+                    // Deactivate the current position (turn off)
+                    _activatedPositions.value = emptySet()
+                    delay(100)  // Short delay for the "off" state
+
+
                     _activatedPositions.value = setOf(currentPosition)
                     _gameState.value = _gameState.value.copy(
                         currentPosition = currentPosition,
