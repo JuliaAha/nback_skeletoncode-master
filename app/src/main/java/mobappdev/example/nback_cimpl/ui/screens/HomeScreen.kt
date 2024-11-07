@@ -72,6 +72,11 @@ fun HomeScreen(
                 text = "High-Score = $highscore",
                 style = MaterialTheme.typography.headlineLarge
             )
+            Button(onClick = {
+                navController.navigate("settings")
+            }) {
+                Text(text = "Settings")
+            }
 
             Button(
                 onClick = {

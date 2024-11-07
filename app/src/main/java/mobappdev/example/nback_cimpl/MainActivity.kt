@@ -12,6 +12,7 @@ import mobappdev.example.nback_cimpl.ui.NavigationGraph
 import mobappdev.example.nback_cimpl.ui.screens.HomeScreen
 import mobappdev.example.nback_cimpl.ui.theme.NBack_CImplTheme
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameVM
+import mobappdev.example.nback_cimpl.ui.viewmodels.SettingsViewModel
 
 /**
  * This is the MainActivity of the application
@@ -37,13 +38,21 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Instantiate the viewmodel with the custom factory
+                    // Instantiate the GameVM with the custom factory
                     val gameViewModel: GameVM = viewModel(
                         factory = GameVM.provideFactory(application as GameApplication)
                     )
 
+                    // Instantiate the SettingsViewModel
+                    val settingsViewModel: SettingsViewModel = viewModel(
+                        factory = SettingsViewModel.provideFactory(application as GameApplication)
+                    )
+
                     // Call NavigationGraph to handle navigation
-                    NavigationGraph(gameViewModel)
+                    NavigationGraph(
+                        gameViewModel = gameViewModel,
+                        settingsViewModel = settingsViewModel
+                    )
                 }
             }
         }

@@ -2,6 +2,8 @@ package mobappdev.example.nback_cimpl.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -10,7 +12,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import mobappdev.example.nback_cimpl.ui.HOME_ROUTE
-import kotlinx.coroutines.launch
 import mobappdev.example.nback_cimpl.ui.viewmodels.GameViewModel
 import androidx.navigation.NavController
 
@@ -24,6 +25,7 @@ fun GameScreen(
     val activatedPositions by vm.activatedPositions.collectAsState()
     val snackBarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val gridSize = gameState.gridSize  // Now ensured to be set in GameState
 
     // Use DisposableEffect to stop the game when the GameScreen is disposed
     DisposableEffect(Unit) {
@@ -65,29 +67,26 @@ fun GameScreen(
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            // 3x3 Grid
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                for (row in 0..2) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        for (col in 0..2) {
-                            val index = row * 3 + col
-                            Box(
-                                modifier = Modifier
-                                    .padding(4.dp)
-                                    .size(80.dp)
-                                    .background(
-                                        color = when {
-                                            index == gameState.currentPosition -> Color.Green
-                                            activatedPositions.contains(index) -> Color.Gray
-                                            else -> Color.LightGray // Use a neutral color for unactivated positions
-                                        }
-                                    )
+            // LazyVerticalGrid based on gridSize for large grids
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(gridSize),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)  // Allow the grid to expand within available space
+            ) {
+                items(gridSize * gridSize) { index ->
+                    Box(
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .aspectRatio(1f)  // Ensures each tile is square
+                            .background(
+                                color = when {
+                                    index == gameState.currentPosition -> Color.Green
+                                    activatedPositions.contains(index) -> Color.Gray
+                                    else -> Color.LightGray
+                                }
                             )
-                        }
-                    }
+                    )
                 }
             }
 

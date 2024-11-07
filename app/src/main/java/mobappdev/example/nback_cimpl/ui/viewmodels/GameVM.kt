@@ -11,11 +11,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import mobappdev.example.nback_cimpl.GameApplication
 import mobappdev.example.nback_cimpl.NBackHelper
 import mobappdev.example.nback_cimpl.data.UserPreferencesRepository
-import java.util.*
+import java.util.Locale
+import java.util.Random
 
 interface GameViewModel {
     val gameState: StateFlow<GameState>
@@ -23,6 +25,7 @@ interface GameViewModel {
     val highscore: StateFlow<Int>
     val activatedPositions: StateFlow<Set<Int>>
     val nBack: Int
+    val currentIndex: StateFlow<Int>
 
     fun startGame()
     fun checkAudioMatch()
@@ -44,20 +47,22 @@ class GameVM(
     override val gameState: StateFlow<GameState> = _gameState.asStateFlow()
 
     private val _score = MutableStateFlow(0)
-    override val score: StateFlow<Int> = _score
+    override val score: StateFlow<Int> get() = _score.asStateFlow()
 
     private val _highscore = MutableStateFlow(0)
-    override val highscore: StateFlow<Int> = _highscore
+    override val highscore: StateFlow<Int> get() = _highscore.asStateFlow()
+
+    private val _currentIndex = MutableStateFlow(-1)
+    override val currentIndex: StateFlow<Int> get() = _currentIndex.asStateFlow()
 
     private val nBackHelper = NBackHelper()
     private var job: Job? = null
-    private val eventInterval: Long = 2000L
     private var positionSequence: List<Int> = listOf()
     private var letterSequence: List<Char> = listOf()
-
     private var textToSpeech: TextToSpeech? = null
-    private var currentIndex: Int = -1
-    private var readyForMatchCheck = false
+
+    private val matchCheckedPositions = mutableSetOf<Int>()
+    private val matchCheckedAudio = mutableSetOf<Int>()
 
     init {
         textToSpeech = TextToSpeech(context, this)
@@ -76,60 +81,69 @@ class GameVM(
     }
 
     private fun playAudioLetter(letter: Char) {
-        textToSpeech?.speak(letter.toString(), TextToSpeech.QUEUE_FLUSH, null, null)
-        Log.d("GameVM", "Playing audio for letter: $letter")
+        textToSpeech?.let {
+            if (it.isSpeaking) it.stop()
+            it.speak(letter.toString(), TextToSpeech.QUEUE_FLUSH, null, null)
+            Log.d("GameVM", "Playing audio for letter: $letter")
+        }
     }
 
     override fun startGame() {
-        stopGame() // Stop any ongoing game activities before starting a new one
+        stopGame() // Stop any existing game session
         _score.value = 0
-        readyForMatchCheck = false
-        currentIndex = -1
+        matchCheckedPositions.clear()
+        matchCheckedAudio.clear()
+        _currentIndex.value = -1
 
-        // Generate new sequences using NBackHelper for both positions and letters
-        positionSequence = nBackHelper.generateNBackString(30, 9, 40, nBack).toList()
-        letterSequence = generateLetterSequenceWithRepeat(30)
+        viewModelScope.launch {
+            val settings = userPreferencesRepository.settings.first()
+            if (settings.numberOfEvents <= 0 || settings.nBackLevel <= 0) {
+                Log.e("GameVM", "Invalid settings: Number of Events = ${settings.numberOfEvents}, N-Back Level = ${settings.nBackLevel}")
+                return@launch
+            }
 
-        Log.d("GameVM", "Generated Position Sequence: $positionSequence")
-        Log.d("GameVM", "Generated Letters Sequence: $letterSequence")
+            // Update gridSize in GameState
+            _gameState.value = _gameState.value.copy(gridSize = settings.gridSize)
 
-        job = viewModelScope.launch {
-            delay(500) // Allow time for TextToSpeech to be ready
+            // Apply dynamic grid size
+            val gridRange = settings.gridSize * settings.gridSize
+            positionSequence = nBackHelper.generateNBackString(settings.numberOfEvents, gridRange, 40, settings.nBackLevel).toList()
+            letterSequence = generateLetterSequenceWithRepeat(settings.numberOfEvents)
 
-            for (i in positionSequence.indices) {
-                currentIndex = i
-                val currentPosition = positionSequence[i]
-                val currentLetter = letterSequence[i]
+            job = viewModelScope.launch {
+                if (!waitForTTSReady()) return@launch
 
-                Log.d("GameVM", "Current Index: $i, Current Position: $currentPosition, Current Letter: $currentLetter")
+                for (i in positionSequence.indices) {
+                    _currentIndex.value = i
+                    val currentPosition = positionSequence[i]
+                    val currentLetter = letterSequence[i]
 
-                // Activate the current tile
-                _activatedPositions.value = setOf(currentPosition)
-                _gameState.value = _gameState.value.copy(
-                    currentPosition = currentPosition,
-                    currentLetter = currentLetter
-                )
+                    Log.d("GameVM", "Activating tile at position $currentPosition with letter $currentLetter")
+                    _activatedPositions.value = setOf(currentPosition)
+                    _gameState.value = _gameState.value.copy(
+                        currentPosition = currentPosition,
+                        currentLetter = currentLetter
+                    )
+                    delay(50)
+                    playAudioLetter(currentLetter)
 
-                // Play the audio letter
-                playAudioLetter(currentLetter)
+                    delay(settings.eventInterval.toLong())
 
-                // Keep the tile activated for the event interval
-                delay(eventInterval)
-
-                // Deactivate the tile after the event interval
-                _activatedPositions.value = emptySet()
-                _gameState.value = _gameState.value.copy(currentPosition = -1)
-
-                // Allow a small delay for better visual clarity
-                delay(600)
-
-                // Set ready for match check after processing enough elements
-                if (i == nBack - 1) {
-                    readyForMatchCheck = true
-                    Log.d("GameVM", "Ready for match checks")
+                    _activatedPositions.value = emptySet()
+                    Log.d("GameVM", "Deactivating tile at position $currentPosition")
+                    delay(100)
                 }
             }
         }
+    }
+
+    private suspend fun waitForTTSReady(): Boolean {
+        repeat(10) {
+            if (textToSpeech != null && textToSpeech?.isSpeaking == false) return true
+            delay(100)
+        }
+        Log.e("GameVM", "TextToSpeech not ready, cancelling game start")
+        return false
     }
 
     private fun generateLetterSequenceWithRepeat(size: Int): List<Char> {
@@ -140,7 +154,6 @@ class GameVM(
 
         return tempSequence.mapIndexed { index, char ->
             if (index > 0 && random.nextFloat() < 0.5) {
-                // 50% chance to repeat the previous letter
                 tempSequence[index - 1]
             } else {
                 char
@@ -149,78 +162,49 @@ class GameVM(
     }
 
     override fun checkAudioMatch() {
-        if (!readyForMatchCheck || currentIndex < nBack) {
-            Log.d("GameVM", "Audio match check attempted before sequence was ready or not enough data.")
-            _gameState.value = _gameState.value.copy(feedback = "No match!")
-            return
+        if (currentIndex.value >= nBack) {
+            val matchIndex = currentIndex.value - nBack
+            if (letterSequence[matchIndex] == letterSequence[currentIndex.value] && matchCheckedAudio.add(currentIndex.value)) {
+                _score.value += 1
+                Log.d("GameVM", "Audio Match confirmed at index ${currentIndex.value}, score incremented.")
+                _gameState.value = _gameState.value.copy(feedback = "Audio Correct match!")
+            } else {
+                _gameState.value = _gameState.value.copy(feedback = "No match!")
+            }
         }
-
-        val matchIndex = currentIndex - nBack
-        val expectedLetter = letterSequence[matchIndex]
-        val currentLetter = letterSequence[currentIndex]
-        val audioMatch = expectedLetter == currentLetter
-
-        Log.d("GameVM", "Checking Audio Match: Expected Letter: $expectedLetter, Current Letter: $currentLetter, Match: $audioMatch")
-        updateMatchFeedback(audioMatch, isAudio = true)
     }
 
     override fun checkPlaceMatch() {
-        if (!readyForMatchCheck || currentIndex < nBack) {
-            Log.d("GameVM", "Place match check attempted before sequence was ready or not enough data.")
-            _gameState.value = _gameState.value.copy(feedback = "No match!")
-            return
+        if (currentIndex.value >= nBack) {
+            val matchIndex = currentIndex.value - nBack
+            if (positionSequence[matchIndex] == positionSequence[currentIndex.value] && matchCheckedPositions.add(currentIndex.value)) {
+                _score.value += 1
+                Log.d("GameVM", "Place Match confirmed at index ${currentIndex.value}, score incremented.")
+                _gameState.value = _gameState.value.copy(feedback = "Place Correct match!")
+            } else {
+                _gameState.value = _gameState.value.copy(feedback = "No match!")
+            }
         }
-
-        val matchIndex = currentIndex - nBack
-        val expectedPosition = positionSequence[matchIndex]
-        val currentPosition = positionSequence[currentIndex]
-        val visualMatch = expectedPosition == currentPosition
-
-        Log.d("GameVM", "Checking Place Match: Expected Position: $expectedPosition, Current Position: $currentPosition, Match: $visualMatch")
-        updateMatchFeedback(visualMatch, isAudio = false)
     }
 
     override fun stopAudio() {
-        if (textToSpeech?.isSpeaking == true) {
-            textToSpeech?.stop()
+        textToSpeech?.let {
+            if (it.isSpeaking) it.stop()
             Log.d("GameVM", "TextToSpeech stopped.")
         }
     }
 
     override fun stopGame() {
-        job?.cancel() // Cancel any ongoing game actions
-        stopAudio() // Stop any audio that might be playing
-        _activatedPositions.value = emptySet() // Reset activated positions
+        job?.cancel()
+        stopAudio()
+        _activatedPositions.value = emptySet()
         _gameState.value = _gameState.value.copy(currentPosition = -1, currentLetter = ' ', feedback = "")
         Log.d("GameVM", "Game stopped.")
     }
 
-    private fun updateMatchFeedback(isMatch: Boolean, isAudio: Boolean) {
-        val feedbackMessage = if (isMatch) {
-            _score.value += 1
-            val matchType = if (isAudio) "Audio" else "Place"
-            "$matchType Correct match!"
-        } else {
-            "No match!"
-        }
-
-        // Check if the current score exceeds the high score and update it
-        if (_score.value > _highscore.value) {
-            _highscore.value = _score.value
-
-            // Persist the new high score
-            viewModelScope.launch {
-                userPreferencesRepository.saveHighScore(_highscore.value)
-            }
-        }
-
-        Log.d("GameVM", "Updating Match Feedback: $feedbackMessage")
-        _gameState.value = _gameState.value.copy(feedback = feedbackMessage)
-    }
-
     override fun onCleared() {
         super.onCleared()
-        stopGame() // Ensure all ongoing tasks are stopped
+        stopGame()
         textToSpeech?.shutdown()
         Log.d("GameVM", "Game stopped and TextToSpeech shutdown.")
     }
@@ -240,9 +224,9 @@ class GameVM(
     }
 }
 
-
 data class GameState(
     val currentPosition: Int = -1,
     val currentLetter: Char = ' ',
-    val feedback: String = ""
+    val feedback: String = "",
+    val gridSize: Int = 3
 )
