@@ -64,11 +64,11 @@ class UserPreferencesRepository (
             )
         }
 
-//    suspend fun saveHighScore(score: Int) {
-//        dataStore.edit { preferences ->
-//            preferences[HIGHSCORE] = score
-//        }
-//    }
+    suspend fun saveHighScore(score: Int) {
+        dataStore.edit { preferences ->
+            preferences[HIGHSCORE] = score
+        }
+    }
 
     suspend fun updateNumberOfEvents(events: Int) {
         dataStore.edit { preferences ->

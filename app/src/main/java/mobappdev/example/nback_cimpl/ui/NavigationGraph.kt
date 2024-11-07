@@ -39,7 +39,7 @@ fun NavigationGraph(
             GameScreen(
                 vm = gameViewModel,
                 navController = navController,
-                gameMode = mode
+                //gameMode = mode
             )
         }
 
